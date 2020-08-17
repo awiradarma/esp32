@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ESP 32 - Robot control</title>
+  <script src="blockly_compressed.js"></script>
+  <script src="javascript_compressed.js"></script>
+  <script src="blocks_compressed.js"></script>
+  <script src="en.js"></script>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+    body {
+      background-color: #fff;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+    h1 {
+      font-weight: normal;
+      font-size: 140%;
+    }
+    table {
+      height: 100%;
+      width: 100%;
+    }
+    #blocklyArea {
+      height: 90%;
+    }
+  </style>
+</head>
+<body>
+  <table>
+    <tr>
+      <td>
+        <h1>ESP 32 Robot Control</h1>
+        <p>
+          <button onclick="showCode()">Show JavaScript</button>
+          <button onclick="runCode()">Run JavaScript</button>
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td id="blocklyArea">
+      </td>
+    </tr>
+  </table>
+  
+
+  <div id="blocklyDiv" style="position: absolute"></div>
+
+  <xml xmlns="https://developers.google.com/blockly/xml" id="toolbox" style="display: none">
+    <block type="controls_if"></block>
+    <block type="logic_compare"></block>
+    <block type="controls_repeat_ext"></block>
+    <block type="math_number">
+      <field name="NUM">1</field>
+    </block>
+    <block type="move_forward"></block>
+    <block type="move_backward"></block>
+    <block type="move_right"></block>
+    <block type="move_left"></block>
+  </xml>
+
+  <script>
+  function sleep(milliseconds) {
+  const date = Date.now();
+  let currentDate = null;
+  do {
+    currentDate = Date.now();
+  } while (currentDate - date < milliseconds);
+}
+
+  function callESP(url) {
+    var req = new XMLHttpRequest();
+    req.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) { 
+        console.log(xhttp.responseText);
+      }
+    }
+    req.open("GET", url, true);
+    req.timeout=1000
+    req.send();
+    sleep(250);
+    console.log("done")
+  }
+
+  Blockly.Blocks['move_forward'] = {
+    init: function() {
+    this.appendValueInput("duration")
+        .setCheck("Number")
+        .setAlign(Blockly.ALIGN_CENTRE)
+        .appendField("move forward (ms) ");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(230);
+    this.setTooltip("forward");
+    this.setHelpUrl("forward");
+    }
+  };
+
+    Blockly.Blocks['move_backward'] = {
+      init: function() {
+      this.appendValueInput("duration")
+        .setCheck("Number")
+        .setAlign(Blockly.ALIGN_CENTRE)
+        .appendField("move backward (ms) ");
+      this.setPreviousStatement(true, null);
+      this.setNextStatement(true, null);
+      this.setColour(230);
+      this.setTooltip("backward");
+      this.setHelpUrl("backward");
+      }
+    };
+
+    Blockly.Blocks['move_left'] = {
+      init: function() {
+      this.appendValueInput("duration")
+        .setCheck("Number")
+        .setAlign(Blockly.ALIGN_CENTRE)
+        .appendField("turn left (ms) ");
+      this.setPreviousStatement(true, null);
+      this.setNextStatement(true, null);
+      this.setColour(230);
+      this.setTooltip("left");
+      this.setHelpUrl("left");
+      }
+    };
+
+    Blockly.Blocks['move_right'] = {
+      init: function() {
+      this.appendValueInput("duration")
+        .setCheck("Number")
+        .setAlign(Blockly.ALIGN_CENTRE)
+        .appendField("turn right (ms) ");
+      this.setPreviousStatement(true, null);
+      this.setNextStatement(true, null);
+      this.setColour(230);
+      this.setTooltip("right");
+      this.setHelpUrl("right");
+      }
+    };
+
+    function showCode() {
+      // Generate JavaScript code and display it.
+      Blockly.JavaScript.INFINITE_LOOP_TRAP = null;
+      var code = Blockly.JavaScript.workspaceToCode(demoWorkspace);
+      alert(code);
+    }
+
+    function runCode() {
+      // Generate JavaScript code and run it.
+      window.LoopTrap = 1000;
+      Blockly.JavaScript.INFINITE_LOOP_TRAP =
+          'if (--window.LoopTrap == 0) throw "Infinite loop.";\n';
+      var code = Blockly.JavaScript.workspaceToCode(demoWorkspace);
+      Blockly.JavaScript.INFINITE_LOOP_TRAP = null;
+      try {
+        eval(code);
+      } catch (e) {
+        alert(e);
+      }
+    }
+
+    Blockly.JavaScript['move_forward'] = function(block) {
+      var duration = Blockly.JavaScript.valueToCode(block, 'duration', Blockly.JavaScript.ORDER_ADDITION) || '250'
+      var code = 'fetch(`http://esp32.local/move/forward?duration=' + duration + '`)\nsleep(500)\n'
+      return code;
+    };
+
+    Blockly.JavaScript['move_backward'] = function(block) {
+      var duration = Blockly.JavaScript.valueToCode(block, 'duration', Blockly.JavaScript.ORDER_ADDITION) || '250'
+      var code = 'fetch(`http://esp32.local/move/backward?duration=' + duration + '`)\nsleep(500)\n'
+      return code;
+    };
+
+    Blockly.JavaScript['move_left'] = function(block) {
+      var duration = Blockly.JavaScript.valueToCode(block, 'duration', Blockly.JavaScript.ORDER_ADDITION) || '250'
+      var code = 'fetch(`http://esp32.local/move/left?duration=' + duration + '`)\nsleep(500)\n'
+      return code;
+    };
+
+    Blockly.JavaScript['move_right'] = function(block) {
+      var duration = Blockly.JavaScript.valueToCode(block, 'duration', Blockly.JavaScript.ORDER_ADDITION) || '250'
+      var code = 'fetch(`http://esp32.local/move/right?duration=' + duration + '`)\nsleep(500)\n'
+      return code;
+    };
+
+    var blocklyArea = document.getElementById('blocklyArea');
+    var blocklyDiv = document.getElementById('blocklyDiv');
+    var demoWorkspace = Blockly.inject(blocklyDiv,
+        {media: '../../media/',
+         toolbox: document.getElementById('toolbox')});
+    var onresize = function(e) {
+      // Compute the absolute coordinates and dimensions of blocklyArea.
+      var element = blocklyArea;
+      var x = 0;
+      var y = 0;
+      do {
+        x += element.offsetLeft;
+        y += element.offsetTop;
+        element = element.offsetParent;
+      } while (element);
+      // Position blocklyDiv over blocklyArea.
+      blocklyDiv.style.left = x + 'px';
+      blocklyDiv.style.top = y + 'px';
+      blocklyDiv.style.width = blocklyArea.offsetWidth + 'px';
+      blocklyDiv.style.height = blocklyArea.offsetHeight + 'px';
+      Blockly.svgResize(demoWorkspace);
+    };
+    window.addEventListener('resize', onresize, false);
+    onresize();
+    Blockly.svgResize(demoWorkspace);
+  </script>
+</body>
+</html>
