@@ -61,6 +61,7 @@
     <block type="move_backward"></block>
     <block type="move_right"></block>
     <block type="move_left"></block>
+    <block type="move_stop"></block>
   </xml>
 
   <script>
@@ -85,6 +86,20 @@
     sleep(250);
     console.log("done")
   }
+
+  Blockly.Blocks['move_stop'] = {
+    init: function() {
+    this.appendValueInput("duration")
+        .setCheck("Number")
+        .setAlign(Blockly.ALIGN_CENTRE)
+        .appendField("stop (ms) ");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(230);
+    this.setTooltip("stop");
+    this.setHelpUrl("stop");
+    }
+  };
 
   Blockly.Blocks['move_forward'] = {
     init: function() {
@@ -162,6 +177,12 @@
         alert(e);
       }
     }
+
+    Blockly.JavaScript['move_stop'] = function(block) {
+      var duration = Blockly.JavaScript.valueToCode(block, 'duration', Blockly.JavaScript.ORDER_ADDITION) || '250'
+      var code = 'fetch(`http://esp32.local/move/stop?duration=' + duration + '`)\nsleep(500)\n'
+      return code;
+    };
 
     Blockly.JavaScript['move_forward'] = function(block) {
       var duration = Blockly.JavaScript.valueToCode(block, 'duration', Blockly.JavaScript.ORDER_ADDITION) || '250'

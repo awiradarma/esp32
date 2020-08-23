@@ -12,7 +12,7 @@
 #define   BACKWARD                      2
 #define   LEFT                          3
 #define   RIGHT                         4
-
+#define   STOP                          5
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C       u8g2(U8G2_R0, 16, 15, 4);
 
 const char* ssid = "ssid";
@@ -24,11 +24,18 @@ WiFiClient cl;
 
 WebServer server(80);
 
-const int led = 13;
+const int led = 25;
 int count=0;
 
 TaskHandle_t Task1;
 
+typedef struct dc_motor {
+  int on_pin; // pin to turn on / off the DC motor
+  int reverse_pin; // pin to reverse direction of the rotation
+} Motor;
+
+Motor A;
+Motor B;
 
 typedef struct strRec {
 	int	command;
@@ -70,9 +77,20 @@ void handleNotFound() {
   digitalWrite(led, 0);
 }
 
+void setPinMode(void) {
+  for (uint8_t i = 12; i < 34; i++) {
+    pinMode(i, OUTPUT);
+  }
+}
+
 void setup(void) {
   
-  pinMode(led, OUTPUT);
+  setPinMode();
+  A.on_pin = 12;
+  A.reverse_pin = 13;
+  B.on_pin = 26;
+  B.reverse_pin = 27;
+
   digitalWrite(led, 0);
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
@@ -116,11 +134,24 @@ void setup(void) {
 
   server.on("/", handleRoot);
 
+  server.on("/on/{}", [] () {
+    String pin = server.pathArg(0);
+    digitalWrite(pin.toInt(),HIGH);
+    server.send(200, "text/plain", "turning ON : " + pin);
+  });
+
+  server.on("/off/{}", [] () {
+    String pin = server.pathArg(0);
+    digitalWrite(pin.toInt(),LOW);
+    server.send(200, "text/plain", "turning OFF : " + pin);
+  });
+
   server.on("/move/{}", []() {
     String duration = "500"; // default duration for each move command is 500 ms
     String command = server.pathArg(0);
 
-    updateCount();
+    digitalWrite(led, 1);
+    //updateCount();
 
     if (server.hasArg("duration")) {
       duration = server.arg("duration");
@@ -131,7 +162,9 @@ void setup(void) {
     if (command.equalsIgnoreCase("backward")) pushToQueue(BACKWARD, duration.toInt());
     if (command.equalsIgnoreCase("left")) pushToQueue(LEFT, duration.toInt());
     if (command.equalsIgnoreCase("right")) pushToQueue(RIGHT, duration.toInt());
+    if (command.equalsIgnoreCase("stop")) pushToQueue(STOP, duration.toInt());
     
+    digitalWrite(led, 0);
     Serial.print("Got a request to move " + command + " for " + duration);
     Serial.print(" - running on core ");
     Serial.println(xPortGetCoreID());
@@ -141,7 +174,7 @@ void setup(void) {
 
   server.begin();
   Serial.println("HTTP server started");
-  q_init(&q, sizeof(Rec), 10, IMPLEMENTATION, false);
+  q_init(&q, sizeof(Rec), 100, IMPLEMENTATION, false);
 
   // Start a separate task to check for the queue, running on core 0
   xTaskCreatePinnedToCore(
@@ -162,6 +195,17 @@ void updateCount() {
   u8g2.sendBuffer();
 }
 
+void showCurrent(String command) {
+  char chbuf[25];
+
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_9x15_tr);
+  command.toCharArray(chbuf, sizeof(chbuf) - 1);
+  sprintf(chBuffer, " %s ", chbuf);
+  u8g2.drawStr(0, FONT_ONE_HEIGHT * 5, chBuffer);
+  u8g2.sendBuffer();
+}
+
 void pushToQueue(int i, int duration) {
   Rec rec = {i, duration};
   q_push(&q, &rec);
@@ -173,18 +217,71 @@ void loop(void) {
 }
 
 void checkQueue (void * parameter) {
+  
+  int processing = 0;
+  unsigned long timeToStop;
+  Rec rec;
+
   for(;;) {
-    if (q_getCount(&q) > 0) {
-      Rec rec;
-      q_pop(&q, &rec);
-      Serial.print("Processing item from queue - running on core ");
-      Serial.print(xPortGetCoreID());
-      Serial.print(" ");
-      Serial.print(rec.command);
-      Serial.print(" : ");
-      Serial.println(rec.duration);
+    
+    if (processing == 0) {
+      if (q_getCount(&q) > 0) {
+        q_pop(&q, &rec);
+        Serial.print("Processing item from queue - running on core ");
+        Serial.print(xPortGetCoreID());
+        Serial.print(" ");
+        Serial.print(rec.command);
+        Serial.print(" : ");
+        Serial.println(rec.duration);
+        if (rec.command == FORWARD) { processing = 1; timeToStop = millis() + rec.duration; showCurrent("FORWARD"); forward(); }
+        if (rec.command == BACKWARD) { processing = 1; timeToStop = millis() + rec.duration; showCurrent("BACKWARD"); backward(); }
+        if (rec.command == LEFT) { processing = 1; timeToStop = millis() + rec.duration; showCurrent("LEFT"); left(); }
+        if (rec.command == RIGHT) { processing = 1; timeToStop = millis() + rec.duration; showCurrent("RIGHT"); right(); }
+        if (rec.command == STOP) { processing = 1; timeToStop = millis() + rec.duration; showCurrent("STOP"); stopMotors(); }
+      } 
+    } else {
+        if (millis() > timeToStop) {
+          processing=0;
+          stopMotors();
+          showCurrent("STOPPED");
+        }
     }
-    delay(25);
+    delay(10);
     yield();
   }
+}
+void stopMotors(void) {
+  digitalWrite(A.on_pin, LOW);
+  digitalWrite(B.on_pin, LOW);
+  digitalWrite(A.reverse_pin, LOW);
+  digitalWrite(B.reverse_pin, LOW);
+}
+
+void forward(void) { 
+  digitalWrite(A.reverse_pin, LOW);
+  digitalWrite(B.reverse_pin, LOW);
+  digitalWrite(A.on_pin, HIGH);
+  digitalWrite(B.on_pin, HIGH);
+}
+
+void backward(void) { 
+  digitalWrite(A.reverse_pin, HIGH);
+  digitalWrite(B.reverse_pin, HIGH);
+  digitalWrite(A.on_pin, LOW);
+  digitalWrite(B.on_pin, LOW);
+}
+
+void left(void) { 
+  digitalWrite(A.reverse_pin, LOW);
+  digitalWrite(B.reverse_pin, HIGH);
+  digitalWrite(A.on_pin, HIGH);
+  digitalWrite(B.on_pin, LOW);
+}
+
+
+void right(void) { 
+  digitalWrite(A.reverse_pin, HIGH);
+  digitalWrite(B.reverse_pin, LOW);
+  digitalWrite(A.on_pin, LOW);
+  digitalWrite(B.on_pin, HIGH);
 }
